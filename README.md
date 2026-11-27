@@ -24,11 +24,14 @@ A standalone, 100% reversible controller & keyboard button prompt installer for 
 
 ## Screenshots
 
-### Installer & Live Preview
-![Parsectagon UFC Controller Icons Mod](docs/app-main.jpg)
+### Main Window & Live Preview
+![Parsectagon UFC Controller Icons Mod](docs/app-main.png)
+
+### Keyboard Mapping Drawer (SacredFire & Kyty)
+![Keyboard Mapping Drawer](docs/app-keymap.png)
 
 ### All Bundled Icon Sets (`All Icons` Gallery)
-![All Available Button Icons](docs/all-icons.jpg)
+![All Available Button Icons](docs/all-icons.png)
 
 ### In-Game Examples (UFC 3 & UFC 4 — KLPS Xbox Icons)
 | UFC 3 | UFC 4 |
