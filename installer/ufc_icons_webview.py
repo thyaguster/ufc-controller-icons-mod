@@ -17,7 +17,7 @@ import zipfile
 
 import webview
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 GITHUB_RELEASES_API = "https://api.github.com/repos/thyaguster/ufc-controller-icons-mod/releases/latest"
 GITHUB_RELEASES_PAGE = "https://github.com/thyaguster/ufc-controller-icons-mod/releases/latest"
 
@@ -259,15 +259,34 @@ class BridgeAPI:
             "keyboard": {"m": _render_strip_uri(kb_m), "v": _render_strip_uri(kb_v)},
         }
 
+    def _backup_status(self) -> dict:
+        g, t = self._game, self._target
+        if not g or not t:
+            return {"ready": False, "label": ""}
+        if g in ("UFC5", "UFC6"):
+            ready = (t / ".ufc6-input-icons-backup.zip").is_file()
+        else:
+            cache = core_ui.cache_dir(g)
+            if g == "UFC2":
+                ready = (cache / "ufc2_backup.json").is_file() and (cache / "ufc2_orig_cz.bin").is_file()
+            else:
+                ready = cache.is_dir() and any(cache.iterdir())
+        return {
+            "ready": ready,
+            "label": "Backup: Verified ✓" if ready else "Backup: Auto on install",
+        }
+
     def get_state(self) -> dict:
         installed = core_ui.detect_installed_pack(self._game, self._target, self._prefs) if (self._game and self._target) else ""
         games = [{"id": g, "label": f"UFC {g[3:]}", "exists": self._known_game_path(g) is not None} for g, _ in core_ui.KNOWN_PATHS]
         nice_g = f"UFC {self._game[3:]}" if (self._game and self._game.startswith("UFC")) else (self._game or "")
         return {
+            "version": APP_VERSION,
             "game": self._game,
             "nice_game": nice_g,
             "target": str(self._target) if self._target else "",
             "installed": installed,
+            "backup": self._backup_status(),
             "games": games,
             "presets": self._presets,
             "controls": {k: core_ui.SHORT_DISPLAY.get(v, v.upper()) for k, v in self._controls.items()},
@@ -676,7 +695,11 @@ HTML = r"""<!DOCTYPE html>
   .tkey .tsub { font-size: 8.5px; color: var(--muted); font-weight: 700; }
   .tkey .tval { font-size: 11px; font-weight: 700; }
 
-  .status { background: #0a0c11; border-top: 1px solid #1f2433; padding: 7px 14px; font-family: "Consolas", monospace; font-size: 11.5px; color: #b5bfd3; position: fixed; left: 0; right: 0; bottom: 0; }
+  .status { background: #0a0c11; border-top: 1px solid #1f2433; padding: 7px 14px; font-family: "Consolas", monospace; font-size: 11.5px; color: #b5bfd3; position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .ver-tag { color: #6f7a94; font-size: 11px; flex-shrink: 0; }
+  .bar-badges { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .bk-badge { background: #14221c; border: 1px solid #264d38; color: #6ee698; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+  .bk-badge.pending { background: #181c26; border-color: #2c3346; color: #8b94a7; }
   .spacer { height: 28px; }
 
   /* Modal Overlay */
@@ -730,7 +753,10 @@ HTML = r"""<!DOCTYPE html>
     </div>
     <div class="bar-bot">
       <div class="detect" id="detect-lbl">Detecting games...</div>
-      <div class="inst-badge" id="inst-badge"></div>
+      <div class="bar-badges">
+        <div class="bk-badge" id="bk-badge" style="display:none"></div>
+        <div class="inst-badge" id="inst-badge"></div>
+      </div>
     </div>
   </div>
 
@@ -750,7 +776,7 @@ HTML = r"""<!DOCTYPE html>
 
   <div class="spacer"></div>
 </div>
-<div class="status" id="status">Ready.</div>
+<div class="status"><span id="status-msg">Ready.</span><span class="ver-tag" id="ver-tag"></span></div>
 
 <div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal-box">
@@ -799,6 +825,15 @@ function render(st) {
   const ib = document.getElementById("inst-badge");
   ib.textContent = st.installed ? `Installed: ${st.installed}` : "";
   ib.style.display = st.installed ? "" : "none";
+  const bk = document.getElementById("bk-badge");
+  if (st.backup && st.backup.label) {
+    bk.textContent = st.backup.label;
+    bk.className = "bk-badge" + (st.backup.ready ? "" : " pending");
+    bk.style.display = "";
+  } else {
+    bk.style.display = "none";
+  }
+  if (st.version) document.getElementById("ver-tag").textContent = "v" + st.version;
 
   const psStock = st.presets.ps.menus === "stock" && st.presets.ps.moves === "stock";
   const cardDefs = [
@@ -881,7 +916,7 @@ async function doInstall(style) {
 }
 window.onLog = (m) => setStatus(m);
 window.onInstallDone = (ok, msg, st) => { render(st); setStatus(ok ? msg.split('\n')[0] : `ERROR: ${msg}`); alert((ok ? "Done:\n\n" : "Error:\n\n") + msg); };
-function setStatus(m) { document.getElementById("status").textContent = m; }
+function setStatus(m) { document.getElementById("status-msg").textContent = m; }
 
 document.addEventListener("keydown", async (e) => {
   if (e.key === "Escape") {
