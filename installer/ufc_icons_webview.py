@@ -1,18 +1,33 @@
 """Parsectagon — UFC Controller Icons Mod (Edge WebView2 Edition)."""
 from __future__ import annotations
 
+import argparse
 import base64
 import ctypes
 import io
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import threading
+import urllib.request
 import webbrowser
 import zipfile
 
 import webview
+
+APP_VERSION = "1.0.0"
+GITHUB_RELEASES_API = "https://api.github.com/repos/thyaguster/ufc-controller-icons-mod/releases/latest"
+GITHUB_RELEASES_PAGE = "https://github.com/thyaguster/ufc-controller-icons-mod/releases/latest"
+
+
+def _parse_semver(tag: str) -> tuple[int, ...]:
+    nums = []
+    for part in str(tag or "").strip().lstrip("vV").split("."):
+        digits = "".join(ch for ch in part if ch.isdigit())
+        nums.append(int(digits) if digits else 0)
+    return tuple(nums or [0])
 
 _MEIPASS = Path(getattr(sys, "_MEIPASS", "")) if getattr(sys, "_MEIPASS", None) else None
 _HERE = Path(__file__).resolve().parent
@@ -108,7 +123,7 @@ def _stock_ps_glyphs(colored: bool) -> list:
 
 
 class BridgeAPI:
-    def __init__(self) -> None:
+    def __init__(self, initial_game: str | None = None, initial_folder: str | None = None) -> None:
         self._window: webview.Window | None = None
         self._game: str | None = None
         self._target: Path | None = None
@@ -120,13 +135,25 @@ class BridgeAPI:
             "switch": {"menus": "solid", "moves": "solid"},
         }
         self._busy = False
+        self._pending_update: dict | None = None
         self._z23_p = next((p for p in (_MEIPASS / "ufc23_xbox_gnf.zip" if _MEIPASS else None, _REPO / "ufc3" / "src" / "ufc23_xbox_gnf.zip") if p and p.is_file()), None)
         self._z4_p = next((p for p in (_MEIPASS / "ufc4_xbox_gnf.zip" if _MEIPASS else None, _REPO / "ufc4" / "src" / "ufc4_xbox_gnf.zip") if p and p.is_file()), None)
         self._kz_p = next((p for p in (
             _MEIPASS / "ufc4_keyboard" / "keyboard-art" / "kenney_kb_prompts.zip" if _MEIPASS else None,
             _REPO / "ufc4" / "src" / "ufc4_keyboard" / "keyboard-art" / "kenney_kb_prompts.zip",
         ) if p and p.is_file()), None)
-        self._auto_guess()
+        loaded = False
+        if initial_folder:
+            fp = Path(initial_folder)
+            if fp.exists():
+                loaded = self._load_folder(fp)
+        if not loaded and initial_game:
+            g_id = initial_game.strip().upper().replace(" ", "")
+            gp = self._known_game_path(g_id)
+            if gp and gp.exists():
+                loaded = self._load_folder(gp)
+        if not loaded:
+            self._auto_guess()
 
     def _known_game_path(self, game_id: str) -> Path | None:
         saved = self._prefs.get("paths", {}).get(game_id)
@@ -289,6 +316,82 @@ class BridgeAPI:
 
     def open_url(self, url: str) -> None:
         webbrowser.open(url)
+
+    def check_update(self) -> None:
+        def _worker() -> None:
+            try:
+                req = urllib.request.Request(
+                    GITHUB_RELEASES_API,
+                    headers={"Accept": "application/vnd.github+json", "User-Agent": f"UFC-Controller-Icons-Mod/{APP_VERSION}"},
+                )
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    data = json.loads(resp.read().decode("utf-8", errors="replace"))
+                tag = str(data.get("tag_name") or "").strip()
+                if not tag or _parse_semver(tag) <= _parse_semver(APP_VERSION):
+                    return
+                dl_url = ""
+                for a in data.get("assets") or []:
+                    if str(a.get("name", "")).lower() == "ufc_controller_icons_mod.exe":
+                        dl_url = str(a.get("browser_download_url") or "")
+                        break
+                self._pending_update = {"tag": tag, "url": dl_url, "page": str(data.get("html_url") or GITHUB_RELEASES_PAGE)}
+                if self._window:
+                    self._window.evaluate_js(f"window.onUpdateAvailable({json.dumps(tag)})")
+            except Exception:
+                pass
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def apply_update(self) -> dict:
+        upd = self._pending_update
+        if not upd:
+            return {"ok": False, "message": "No update available."}
+        if not getattr(sys, "frozen", False) or not upd.get("url"):
+            webbrowser.open(upd.get("page") or GITHUB_RELEASES_PAGE)
+            return {"ok": True, "message": "Opened release page."}
+        exe_path = Path(sys.executable).resolve()
+        new_path = exe_path.with_suffix(".exe.new")
+
+        def _worker() -> None:
+            try:
+                if self._window:
+                    self._window.evaluate_js(f"window.onLog({json.dumps('Downloading update ' + upd['tag'] + '...')})")
+                req = urllib.request.Request(upd["url"], headers={"User-Agent": f"UFC-Controller-Icons-Mod/{APP_VERSION}"})
+                with urllib.request.urlopen(req, timeout=60) as resp, open(new_path, "wb") as out:
+                    while True:
+                        chunk = resp.read(65536)
+                        if not chunk:
+                            break
+                        out.write(chunk)
+                if new_path.stat().st_size < 1_000_000 or new_path.read_bytes()[:2] != b"MZ":
+                    new_path.unlink(missing_ok=True)
+                    raise RuntimeError("Downloaded update file was invalid.")
+                bat = exe_path.with_suffix(".update.cmd")
+                args_str = " ".join(f'"{a}"' for a in sys.argv[1:])
+                bat.write_text(
+                    "@echo off\r\n"
+                    f"set TARGET={exe_path}\r\n"
+                    f"set NEW={new_path}\r\n"
+                    ":retry\r\n"
+                    "timeout /t 1 /nobreak >nul\r\n"
+                    "move /y \"%NEW%\" \"%TARGET%\" >nul 2>&1\r\n"
+                    "if errorlevel 1 goto retry\r\n"
+                    f"start \"\" \"%TARGET%\" {args_str}\r\n"
+                    "del \"%~f0\" >nul 2>&1\r\n",
+                    encoding="utf-8",
+                )
+                subprocess.Popen(
+                    ["cmd", "/c", str(bat)],
+                    creationflags=0x08000000 | 0x00000008,  # CREATE_NO_WINDOW | DETACHED_PROCESS
+                    close_fds=True,
+                )
+                if self._window:
+                    self._window.destroy()
+            except Exception as exc:
+                if self._window:
+                    self._window.evaluate_js(f"window.onLog({json.dumps('Update failed: ' + str(exc))})")
+
+        threading.Thread(target=_worker, daemon=True).start()
+        return {"ok": True}
 
     def resize_height(self, content_h: int) -> None:
         if not self._window:
@@ -605,6 +708,7 @@ HTML = r"""<!DOCTYPE html>
       <div class="sub">Choose your game and icon pack below. Customize keyboard bindings anytime if needed.</div>
     </div>
     <div class="hdr-btns">
+      <button class="hbtn" id="upd-btn" style="display:none;background:#1a3d2a;border-color:#2ea05f;color:#7df2a8;" onclick="doUpdate()">Update</button>
       <button class="hbtn icons" onclick="openIcons()">All Icons</button>
       <button class="hbtn help" onclick="openHelp()">? Help</button>
       <button class="hbtn" onclick="openCredits()">Credits</button>
@@ -846,10 +950,23 @@ function openCredits() {
   ].map(([h,t]) => `<div class="msec"><h3>${h}</h3><p>${t}</p></div>`).join(""));
 }
 
+window.onUpdateAvailable = (tag) => {
+  const b = document.getElementById("upd-btn");
+  b.textContent = `↑ Update ${tag}`;
+  b.style.display = "";
+};
+async function doUpdate() {
+  const b = document.getElementById("upd-btn");
+  b.disabled = true;
+  b.textContent = "Updating...";
+  await api().apply_update();
+}
+
 window.addEventListener("pywebviewready", async () => {
   render(await api().get_state());
   fitWindow();
   setStatus("Ready.");
+  api().check_update();
 });
 </script>
 </body>
@@ -878,8 +995,13 @@ def _apply_dark_titlebar_hwnd(title: str) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--game", default=None)
+    parser.add_argument("--folder", default=None)
+    args, _ = parser.parse_known_args()
+
     title = "Parsectagon — UFC Controller Icons Mod"
-    api = BridgeAPI()
+    api = BridgeAPI(initial_game=args.game, initial_folder=args.folder)
     win = webview.create_window(
         title,
         html=HTML,
