@@ -109,27 +109,27 @@ def _stock_ps_glyphs(colored: bool) -> list:
 
 class BridgeAPI:
     def __init__(self) -> None:
-        self.window: webview.Window | None = None
-        self.game: str | None = None
-        self.target: Path | None = None
-        self.controls: dict[str, str] = core_ui.SACREDFIRE_DEFAULTS.copy()
-        self.prefs: dict = core_ui.load_prefs()
-        self.presets: dict[str, dict[str, str]] = {
+        self._window: webview.Window | None = None
+        self._game: str | None = None
+        self._target: Path | None = None
+        self._controls: dict[str, str] = core_ui.SACREDFIRE_DEFAULTS.copy()
+        self._prefs: dict = core_ui.load_prefs()
+        self._presets: dict[str, dict[str, str]] = {
             "xbox": {"menus": "white", "moves": "ring"},
             "ps": {"menus": "stock", "moves": "stock"},
             "switch": {"menus": "solid", "moves": "solid"},
         }
-        self.busy = False
-        self.z23_p = next((p for p in (_MEIPASS / "ufc23_xbox_gnf.zip" if _MEIPASS else None, _REPO / "ufc3" / "src" / "ufc23_xbox_gnf.zip") if p and p.is_file()), None)
-        self.z4_p = next((p for p in (_MEIPASS / "ufc4_xbox_gnf.zip" if _MEIPASS else None, _REPO / "ufc4" / "src" / "ufc4_xbox_gnf.zip") if p and p.is_file()), None)
-        self.kz_p = next((p for p in (
+        self._busy = False
+        self._z23_p = next((p for p in (_MEIPASS / "ufc23_xbox_gnf.zip" if _MEIPASS else None, _REPO / "ufc3" / "src" / "ufc23_xbox_gnf.zip") if p and p.is_file()), None)
+        self._z4_p = next((p for p in (_MEIPASS / "ufc4_xbox_gnf.zip" if _MEIPASS else None, _REPO / "ufc4" / "src" / "ufc4_xbox_gnf.zip") if p and p.is_file()), None)
+        self._kz_p = next((p for p in (
             _MEIPASS / "ufc4_keyboard" / "keyboard-art" / "kenney_kb_prompts.zip" if _MEIPASS else None,
             _REPO / "ufc4" / "src" / "ufc4_keyboard" / "keyboard-art" / "kenney_kb_prompts.zip",
         ) if p and p.is_file()), None)
         self._auto_guess()
 
     def _known_game_path(self, game_id: str) -> Path | None:
-        saved = self.prefs.get("paths", {}).get(game_id)
+        saved = self._prefs.get("paths", {}).get(game_id)
         if saved and Path(saved).exists():
             return Path(saved)
         for g, p in core_ui.KNOWN_PATHS:
@@ -148,31 +148,31 @@ class BridgeAPI:
         game, resolved = core_ui.detect_game(folder)
         if not game or not resolved:
             return False
-        self.game, self.target = game, resolved
-        self.prefs.setdefault("paths", {})[game] = str(resolved)
-        core_ui.save_prefs(self.prefs)
-        self.controls = core_ui.load_bbport_dict(core_ui.bbport_path(game)) if game in ("UFC2", "UFC3", "UFC4") else core_ui.load_kyty_dict(resolved)
-        saved_p = self.prefs.get("presets", {}).get(game)
+        self._game, self._target = game, resolved
+        self._prefs.setdefault("paths", {})[game] = str(resolved)
+        core_ui.save_prefs(self._prefs)
+        self._controls = core_ui.load_bbport_dict(core_ui.bbport_path(game)) if game in ("UFC2", "UFC3", "UFC4") else core_ui.load_kyty_dict(resolved)
+        saved_p = self._prefs.get("presets", {}).get(game)
         if saved_p:
             for s in ("xbox", "ps", "switch"):
                 if s in saved_p:
-                    self.presets[s].update(saved_p[s])
+                    self._presets[s].update(saved_p[s])
         else:
-            self.presets["xbox"]["menus"] = "white"
-            self.presets["xbox"]["moves"] = "disc" if game in ("UFC5", "UFC6") else "ring"
-            self.presets["ps"] = {"menus": "stock", "moves": "stock"}
-            self.presets["switch"] = {"menus": "solid", "moves": "solid"}
+            self._presets["xbox"]["menus"] = "white"
+            self._presets["xbox"]["moves"] = "disc" if game in ("UFC5", "UFC6") else "ring"
+            self._presets["ps"] = {"menus": "stock", "moves": "stock"}
+            self._presets["switch"] = {"menus": "solid", "moves": "solid"}
         return True
 
     def _build_previews(self) -> dict:
         from PIL import Image
-        g = self.game or "UFC4"
+        g = self._game or "UFC4"
         p23 = "samplegame/ui/kettle_assets/skins/buttons/ps3/"
         p4 = "samplegame/ui/kettle_assets/skins/buttons/ps/"
-        zp, pref = (self.z23_p, p23) if g in ("UFC2", "UFC3") else (self.z4_p, p4)
+        zp, pref = (self._z23_p, p23) if g in ("UFC2", "UFC3") else (self._z4_p, p4)
 
         # Xbox
-        xm, xv = self.presets["xbox"]["menus"], self.presets["xbox"]["moves"]
+        xm, xv = self._presets["xbox"]["menus"], self._presets["xbox"]["moves"]
         if xm == "kenney":
             xb_m = [im for s in ("digital_one", "digital_two", "digital_four", "digital_three", "left_bumper", "right_bumper") if (im := gamepad_icon("xbox", s, "kenney_white")) is not None]
         else:
@@ -181,11 +181,11 @@ class BridgeAPI:
         if xv == "kenney":
             xb_v = [im for s in ("digital_one", "digital_two", "digital_four", "digital_three", "left_trigger", "right_trigger") if (im := gamepad_icon("xbox", s, "kenney_color")) is not None]
         else:
-            vf = _grab_gnf(self.z23_p, p23, ("black_large/digital_one", "black_large/digital_two", "black_large/digital_four", "black_large/digital_three")) if xv == "disc" else _grab_gnf(zp, pref, ("white/digital_one", "white/digital_two", "white/digital_four", "white/digital_three") if xv == "white" else ("digital_one", "digital_two", "digital_four", "digital_three"))
+            vf = _grab_gnf(self._z23_p, p23, ("black_large/digital_one", "black_large/digital_two", "black_large/digital_four", "black_large/digital_three")) if xv == "disc" else _grab_gnf(zp, pref, ("white/digital_one", "white/digital_two", "white/digital_four", "white/digital_three") if xv == "white" else ("digital_one", "digital_two", "digital_four", "digital_three"))
             xb_v = vf + _grab_gnf(zp, pref, ("left_trigger", "right_trigger"))
 
         # PlayStation
-        pm, pv = self.presets["ps"]["menus"], self.presets["ps"]["moves"]
+        pm, pv = self._presets["ps"]["menus"], self._presets["ps"]["moves"]
         if pm == "kenney":
             ps_m = [im for s in ("digital_one", "digital_two", "digital_four", "digital_three", "left_bumper", "right_bumper") if (im := gamepad_icon("ps", s, "kenney_white")) is not None]
         elif pm == "kenney_color":
@@ -203,23 +203,23 @@ class BridgeAPI:
             ps_v = _stock_ps_glyphs(g not in ("UFC5", "UFC6"))
 
         # Switch
-        sm, sv = self.presets["switch"]["menus"], self.presets["switch"]["moves"]
+        sm, sv = self._presets["switch"]["menus"], self._presets["switch"]["moves"]
         sw_m = [im for s in ("digital_one", "digital_two", "digital_four", "digital_three", "left_bumper", "right_bumper") if (im := gamepad_icon("switch", s, sm)) is not None]
         sw_v = [im for s in ("digital_one", "digital_two", "digital_four", "digital_three", "left_trigger", "right_trigger") if (im := gamepad_icon("switch", s, sv)) is not None]
 
-        # Keyboard (live from self.controls)
+        # Keyboard (live from self._controls)
         kb_m, kb_v = [], []
-        if self.kz_p:
-            with zipfile.ZipFile(self.kz_p) as z:
+        if self._kz_p:
+            with zipfile.ZipFile(self._kz_p) as z:
                 avail = set(z.namelist())
                 for ctrl in ("Cross", "Circle", "Options", "TouchPad", "L1", "R1"):
-                    k = core_ui._key_to_kenney_png(self.controls.get(ctrl, ""), avail)
+                    k = core_ui._key_to_kenney_png(self._controls.get(ctrl, ""), avail)
                     if k:
                         im = Image.open(io.BytesIO(z.read(k))).convert("RGBA")
                         bb = im.getchannel("A").point(lambda v: 255 if v > 15 else 0).getbbox()
                         kb_m.append(im.crop(bb) if bb else im)
                 for ctrl in ("LeftStickUp", "LeftStickLeft", "LeftStickDown", "LeftStickRight", "L2", "R2"):
-                    k = core_ui._key_to_kenney_png(self.controls.get(ctrl, ""), avail)
+                    k = core_ui._key_to_kenney_png(self._controls.get(ctrl, ""), avail)
                     if k:
                         im = Image.open(io.BytesIO(z.read(k))).convert("RGBA")
                         bb = im.getchannel("A").point(lambda v: 255 if v > 15 else 0).getbbox()
@@ -233,19 +233,19 @@ class BridgeAPI:
         }
 
     def get_state(self) -> dict:
-        installed = core_ui.detect_installed_pack(self.game, self.target, self.prefs) if (self.game and self.target) else ""
+        installed = core_ui.detect_installed_pack(self._game, self._target, self._prefs) if (self._game and self._target) else ""
         games = [{"id": g, "label": f"UFC {g[3:]}", "exists": self._known_game_path(g) is not None} for g, _ in core_ui.KNOWN_PATHS]
-        nice_g = f"UFC {self.game[3:]}" if (self.game and self.game.startswith("UFC")) else (self.game or "")
+        nice_g = f"UFC {self._game[3:]}" if (self._game and self._game.startswith("UFC")) else (self._game or "")
         return {
-            "game": self.game,
+            "game": self._game,
             "nice_game": nice_g,
-            "target": str(self.target) if self.target else "",
+            "target": str(self._target) if self._target else "",
             "installed": installed,
             "games": games,
-            "presets": self.presets,
-            "controls": {k: core_ui.SHORT_DISPLAY.get(v, v.upper()) for k, v in self.controls.items()},
+            "presets": self._presets,
+            "controls": {k: core_ui.SHORT_DISPLAY.get(v, v.upper()) for k, v in self._controls.items()},
             "previews": self._build_previews(),
-            "busy": self.busy,
+            "busy": self._busy,
         }
 
     def select_game(self, game_id: str) -> dict:
@@ -256,19 +256,19 @@ class BridgeAPI:
         return self.browse_folder()
 
     def browse_folder(self) -> dict:
-        if self.window:
-            res = self.window.create_file_dialog(webview.FileDialog.FOLDER)
+        if self._window:
+            res = self._window.create_file_dialog(webview.FileDialog.FOLDER)
             if res and len(res) > 0:
                 chosen = Path(res[0])
                 if not self._load_folder(chosen):
-                    self.window.evaluate_js(f"window.onLog({json.dumps(f'Unrecognized UFC folder: {chosen}')})")
+                    self._window.evaluate_js(f"window.onLog({json.dumps(f'Unrecognized UFC folder: {chosen}')})")
         return self.get_state()
 
     def set_preset(self, style: str, kind: str, val: str) -> dict:
-        self.presets[style][kind] = val
-        if self.game:
-            self.prefs.setdefault("presets", {})[self.game] = {s: dict(v) for s, v in self.presets.items()}
-            core_ui.save_prefs(self.prefs)
+        self._presets[style][kind] = val
+        if self._game:
+            self._prefs.setdefault("presets", {})[self._game] = {s: dict(v) for s, v in self._presets.items()}
+            core_ui.save_prefs(self._prefs)
         return self.get_state()
 
     def set_key(self, ctrl: str, code: str, key: str) -> dict:
@@ -280,18 +280,18 @@ class BridgeAPI:
                 mapped = key.upper()
             else:
                 mapped = key
-        self.controls[ctrl] = mapped
+        self._controls[ctrl] = mapped
         return self.get_state()
 
     def reset_keys(self) -> dict:
-        self.controls = (core_ui.UFC6_DEFAULTS if self.game in ("UFC5", "UFC6") else core_ui.SACREDFIRE_DEFAULTS).copy()
+        self._controls = (core_ui.UFC6_DEFAULTS if self._game in ("UFC5", "UFC6") else core_ui.SACREDFIRE_DEFAULTS).copy()
         return self.get_state()
 
     def open_url(self, url: str) -> None:
         webbrowser.open(url)
 
     def resize_height(self, content_h: int) -> None:
-        if not self.window:
+        if not self._window:
             return
         max_h = 880
         try:
@@ -301,15 +301,15 @@ class BridgeAPI:
         except Exception:
             pass
         want_h = min(max_h, max(470, int(content_h) + 38))
-        self.window.resize(self.window.width, want_h)
+        self._window.resize(self._window.width, want_h)
 
     def set_modal_expanded(self, expanded: bool) -> None:
-        if not self.window:
+        if not self._window:
             return
         if os.name == "nt":
             try:
                 user32 = ctypes.windll.user32
-                hwnd = user32.FindWindowW(None, self.window.title)
+                hwnd = user32.FindWindowW(None, self._window.title)
                 if hwnd:
                     class _RECT(ctypes.Structure):
                         _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
@@ -338,12 +338,12 @@ class BridgeAPI:
             except Exception:
                 pass
         if expanded:
-            self._pre_expand_wh = (self.window.width, self.window.height)
-            self.window.resize(1120, 860)
+            self._pre_expand_wh = (self._window.width, self._window.height)
+            self._window.resize(1120, 860)
         else:
             prev = getattr(self, "_pre_expand_wh", None)
             if prev:
-                self.window.resize(prev[0], prev[1])
+                self._window.resize(prev[0], prev[1])
                 self._pre_expand_wh = None
 
     def get_all_icons(self) -> list[dict]:
@@ -362,12 +362,12 @@ class BridgeAPI:
             {
                 "title": "Xbox — KLPS (Authentic EA UFC 2/3 & UFC 4)",
                 "rows": [
-                    ("MENUS · White (UFC 4/5/6)", strip(_grab_gnf(self.z4_p, p4, ("white/digital_one", "white/digital_two", "white/digital_four", "white/digital_three", "left_bumper", "right_bumper", "left_trigger", "right_trigger", "start", "select", "guide")))),
-                    ("MENUS · White (UFC 2/3)", strip(_grab_gnf(self.z23_p, p23, ("white/digital_one", "white/digital_two", "white/digital_four", "white/digital_three", "left_bumper", "right_bumper", "left_trigger", "right_trigger", "start", "select", "guide")))),
-                    ("MENUS · Outline", strip(_grab_gnf(self.z4_p, p4, ("ue_digital_one", "ue_digital_two", "ue_digital_four", "ue_digital_three", "left_bumper", "right_bumper")))),
-                    ("MOVES · Color Ring (UFC 4)", strip(_grab_gnf(self.z4_p, p4, ("digital_one", "digital_two", "digital_four", "digital_three", "left_trigger", "right_trigger", "left_right_bumper", "left_right_trigger")))),
-                    ("MOVES · Color Ring (UFC 2/3)", strip(_grab_gnf(self.z23_p, p23, ("digital_one", "digital_two", "digital_four", "digital_three", "left_trigger", "right_trigger")))),
-                    ("MOVES · Dark Disc", strip(_grab_gnf(self.z23_p, p23, ("black_large/digital_one", "black_large/digital_two", "black_large/digital_four", "black_large/digital_three")) + _grab_gnf(self.z4_p, p4, ("left_trigger", "right_trigger")))),
+                    ("MENUS · White (UFC 4/5/6)", strip(_grab_gnf(self._z4_p, p4, ("white/digital_one", "white/digital_two", "white/digital_four", "white/digital_three", "left_bumper", "right_bumper", "left_trigger", "right_trigger", "start", "select", "guide")))),
+                    ("MENUS · White (UFC 2/3)", strip(_grab_gnf(self._z23_p, p23, ("white/digital_one", "white/digital_two", "white/digital_four", "white/digital_three", "left_bumper", "right_bumper", "left_trigger", "right_trigger", "start", "select", "guide")))),
+                    ("MENUS · Outline", strip(_grab_gnf(self._z4_p, p4, ("ue_digital_one", "ue_digital_two", "ue_digital_four", "ue_digital_three", "left_bumper", "right_bumper")))),
+                    ("MOVES · Color Ring (UFC 4)", strip(_grab_gnf(self._z4_p, p4, ("digital_one", "digital_two", "digital_four", "digital_three", "left_trigger", "right_trigger", "left_right_bumper", "left_right_trigger")))),
+                    ("MOVES · Color Ring (UFC 2/3)", strip(_grab_gnf(self._z23_p, p23, ("digital_one", "digital_two", "digital_four", "digital_three", "left_trigger", "right_trigger")))),
+                    ("MOVES · Dark Disc", strip(_grab_gnf(self._z23_p, p23, ("black_large/digital_one", "black_large/digital_two", "black_large/digital_four", "black_large/digital_three")) + _grab_gnf(self._z4_p, p4, ("left_trigger", "right_trigger")))),
                 ],
             },
             {
@@ -393,20 +393,20 @@ class BridgeAPI:
                 ],
             },
         ]
-        if self.kz_p:
-            with zipfile.ZipFile(self.kz_p) as z:
+        if self._kz_p:
+            with zipfile.ZipFile(self._kz_p) as z:
                 avail = set(z.namelist())
                 def kb_list(ctrls):
                     out = []
                     for c in ctrls:
-                        k = core_ui._key_to_kenney_png(self.controls.get(c, ""), avail)
+                        k = core_ui._key_to_kenney_png(self._controls.get(c, ""), avail)
                         if k:
                             im = Image.open(io.BytesIO(z.read(k))).convert("RGBA")
                             bb = im.getchannel("A").point(lambda v: 255 if v > 15 else 0).getbbox()
                             out.append(im.crop(bb) if bb else im)
                     return out
                 sections.append({
-                    "title": f"Keyboard — Kenney (Active {self.game or 'Default'} Bindings)",
+                    "title": f"Keyboard — Kenney (Active {self._game or 'Default'} Bindings)",
                     "rows": [
                         ("Face & System", strip(kb_list(("Cross", "Circle", "Square", "Triangle", "Options", "TouchPad", "L1", "R1", "L2", "R2", "L3", "R3")))),
                         ("Sticks & D-Pad", strip(kb_list(("LeftStickUp", "LeftStickLeft", "LeftStickDown", "LeftStickRight", "Up", "Left", "Down", "Right", "RightStickUp", "RightStickLeft", "RightStickDown", "RightStickRight")))),
@@ -415,18 +415,18 @@ class BridgeAPI:
         return sections
 
     def install(self, style: str, apply_all: bool) -> dict:
-        if self.busy:
+        if self._busy:
             return {"ok": False, "message": "Busy..."}
-        if not self.game or not self.target:
+        if not self._game or not self._target:
             return {"ok": False, "message": "Select a UFC game first."}
-        self.busy = True
-        game, target, controls = self.game, self.target, dict(self.controls)
-        p = self.presets.get(style, {"menus": "white", "moves": "ring"})
+        self._busy = True
+        game, target, controls = self._game, self._target, dict(self._controls)
+        p = self._presets.get(style, {"menus": "white", "moves": "ring"})
         pm, pv = p["menus"], p["moves"]
 
         def _push_log(msg: str) -> None:
-            if self.window:
-                self.window.evaluate_js(f"window.onLog({json.dumps(str(msg))})")
+            if self._window:
+                self._window.evaluate_js(f"window.onLog({json.dumps(str(msg))})")
 
         def worker() -> None:
             try:
@@ -458,16 +458,16 @@ class BridgeAPI:
                     c_for_g = controls if g == game else (core_ui.load_bbport_dict(core_ui.bbport_path(g)) if g in ("UFC2", "UFC3", "UFC4") else core_ui.load_kyty_dict(r))
                     res = core_ui.apply_game_icons(g, r, style, c_for_g, _push_log, menus_preset=pm, moves_preset=pv)
                     results.append(f"{g}: {res}")
-                    self.prefs.setdefault("installed", {})[g] = lbl
-                core_ui.save_prefs(self.prefs)
+                    self._prefs.setdefault("installed", {})[g] = lbl
+                core_ui.save_prefs(self._prefs)
                 final = "\n".join(results) if len(results) > 1 else results[0]
-                self.busy = False
-                if self.window:
-                    self.window.evaluate_js(f"window.onInstallDone(true, {json.dumps(final)}, {json.dumps(self.get_state())})")
+                self._busy = False
+                if self._window:
+                    self._window.evaluate_js(f"window.onInstallDone(true, {json.dumps(final)}, {json.dumps(self.get_state())})")
             except Exception as exc:
-                self.busy = False
-                if self.window:
-                    self.window.evaluate_js(f"window.onInstallDone(false, {json.dumps(str(exc))}, {json.dumps(self.get_state())})")
+                self._busy = False
+                if self._window:
+                    self._window.evaluate_js(f"window.onInstallDone(false, {json.dumps(str(exc))}, {json.dumps(self.get_state())})")
 
         threading.Thread(target=worker, daemon=True).start()
         return {"ok": True}
@@ -887,7 +887,7 @@ def main() -> None:
         min_size=(920, 450),
         background_color="#0f1117",
     )
-    api.window = win
+    api._window = win
     ico = next((p for p in (_MEIPASS / "overlay.ico" if _MEIPASS else None, _HERE / "assets" / "overlay.ico") if p and p.is_file()), None)
 
     def on_shown() -> None:
