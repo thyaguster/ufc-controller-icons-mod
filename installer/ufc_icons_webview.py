@@ -869,6 +869,8 @@ def _apply_dark_titlebar_hwnd(title: str) -> None:
         dwm(hwnd, 20, ctypes.byref(val), ctypes.sizeof(val))
         cap = ctypes.c_int(0x0017110F)  # #0f1117
         dwm(hwnd, 35, ctypes.byref(cap), ctypes.sizeof(cap))
+        bdr = ctypes.c_int(0x004639E6)  # #e63946 Parsectagon red border
+        dwm(hwnd, 34, ctypes.byref(bdr), ctypes.sizeof(bdr))
         txt = ctypes.c_int(0x00F9F4F1)
         dwm(hwnd, 36, ctypes.byref(txt), ctypes.sizeof(txt))
     except Exception:
