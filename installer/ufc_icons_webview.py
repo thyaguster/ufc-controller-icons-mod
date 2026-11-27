@@ -303,6 +303,49 @@ class BridgeAPI:
         want_h = min(max_h, max(470, int(content_h) + 38))
         self.window.resize(self.window.width, want_h)
 
+    def set_modal_expanded(self, expanded: bool) -> None:
+        if not self.window:
+            return
+        if os.name == "nt":
+            try:
+                user32 = ctypes.windll.user32
+                hwnd = user32.FindWindowW(None, self.window.title)
+                if hwnd:
+                    class _RECT(ctypes.Structure):
+                        _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+                    if expanded:
+                        cur = _RECT()
+                        if user32.GetWindowRect(hwnd, ctypes.byref(cur)):
+                            self._pre_expand = (cur.left, cur.top, cur.right - cur.left, cur.bottom - cur.top)
+                        rc = _RECT()
+                        if user32.SystemParametersInfoW(48, 0, ctypes.byref(rc), 0):
+                            wa_w = rc.right - rc.left
+                            wa_h = rc.bottom - rc.top
+                            cur_w = (cur.right - cur.left) if getattr(self, "_pre_expand", None) else 980
+                            w = min(wa_w - 60, max(cur_w, 1120))
+                            h = max(620, wa_h - 40)
+                            x = rc.left + max(0, (wa_w - w) // 2)
+                            y = rc.top + max(0, (wa_h - h) // 2)
+                            user32.SetWindowPos(hwnd, 0, x, y, w, h, 0x0004)  # SWP_NOZORDER
+                            return
+                    else:
+                        prev = getattr(self, "_pre_expand", None)
+                        if prev:
+                            px, py, pw, ph = prev
+                            user32.SetWindowPos(hwnd, 0, px, py, pw, ph, 0x0004)
+                            self._pre_expand = None
+                            return
+            except Exception:
+                pass
+        if expanded:
+            self._pre_expand_wh = (self.window.width, self.window.height)
+            self.window.resize(1120, 860)
+        else:
+            prev = getattr(self, "_pre_expand_wh", None)
+            if prev:
+                self.window.resize(prev[0], prev[1])
+                self._pre_expand_wh = None
+
     def get_all_icons(self) -> list[dict]:
         from PIL import Image
         p23 = "samplegame/ui/kettle_assets/skins/buttons/ps3/"
@@ -536,9 +579,12 @@ HTML = r"""<!DOCTYPE html>
   /* Modal Overlay */
   .modal-bg { position: fixed; inset: 0; background: rgba(5,7,11,.75); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
   .modal-bg.open { display: flex; }
+  .modal-bg.expanded { padding: 8px; }
   .modal { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 820px; max-height: 86vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+  .modal.expanded { max-width: 100%; max-height: 100%; height: 100%; }
   .modal-hdr { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
   .modal-hdr h2 { margin: 0; font-size: 15px; }
+  .modal-actions { display: flex; gap: 8px; align-items: center; }
   .modal-body { padding: 14px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
   .msec { background: var(--card); border: 1px solid var(--border); border-radius: 9px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
   .msec h3 { margin: 0 0 2px; font-size: 12px; color: #8ad8ff; }
@@ -603,10 +649,13 @@ HTML = r"""<!DOCTYPE html>
 <div class="status" id="status">Ready.</div>
 
 <div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
-  <div class="modal">
+  <div class="modal" id="modal-box">
     <div class="modal-hdr">
       <h2 id="modal-title">Modal</h2>
-      <button class="hbtn" onclick="closeModal()">Close</button>
+      <div class="modal-actions">
+        <button class="hbtn" id="modal-expand-btn" style="display:none" onclick="toggleModalExpand()">⤢ Expand</button>
+        <button class="hbtn" onclick="closeModal()">Close</button>
+      </div>
     </div>
     <div class="modal-body" id="modal-body"></div>
   </div>
@@ -743,15 +792,37 @@ document.addEventListener("keydown", async (e) => {
   setStatus(`Mapped ${ctrl} -> ${S.controls[ctrl]}`);
 });
 
-function showModal(title, html) {
+let modalExpanded = false;
+function showModal(title, html, expandable = false) {
+  modalExpanded = false;
+  document.getElementById("modal-bg").classList.remove("expanded");
+  document.getElementById("modal-box").classList.remove("expanded");
+  const eb = document.getElementById("modal-expand-btn");
+  eb.style.display = expandable ? "" : "none";
+  eb.textContent = "⤢ Expand";
   document.getElementById("modal-title").textContent = title;
   document.getElementById("modal-body").innerHTML = html;
   document.getElementById("modal-bg").classList.add("open");
 }
-function closeModal() { document.getElementById("modal-bg").classList.remove("open"); }
+async function toggleModalExpand() {
+  modalExpanded = !modalExpanded;
+  document.getElementById("modal-bg").classList.toggle("expanded", modalExpanded);
+  document.getElementById("modal-box").classList.toggle("expanded", modalExpanded);
+  document.getElementById("modal-expand-btn").textContent = modalExpanded ? "⤡ Restore" : "⤢ Expand";
+  await api().set_modal_expanded(modalExpanded);
+}
+async function closeModal() {
+  document.getElementById("modal-bg").classList.remove("open", "expanded");
+  document.getElementById("modal-box").classList.remove("expanded");
+  if (modalExpanded) {
+    modalExpanded = false;
+    await api().set_modal_expanded(false);
+    fitWindow();
+  }
+}
 
 async function openIcons() {
-  showModal("All Available Button Icons", "<div class='sub'>Rendering icon sets...</div>");
+  showModal("All Available Button Icons", "<div class='sub'>Rendering icon sets...</div>", true);
   const secs = await api().get_all_icons();
   document.getElementById("modal-body").innerHTML = secs.map(s =>
     `<div class="msec"><h3>${s.title}</h3>${s.rows.map(([l,u]) =>

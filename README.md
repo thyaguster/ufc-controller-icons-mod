@@ -25,13 +25,16 @@ A standalone, 100% reversible controller & keyboard button prompt installer for 
 
 ## Screenshots
 
-### Main Window & Live Preview
+### Main Window & Live Preview (Default Presets — UFC 6)
 ![Parsectagon UFC Controller Icons Mod](docs/app-main.png)
 
-### Keyboard Mapping Drawer (SacredFire & Kyty)
+### Mix-and-Match Presets (Colored Xbox, Classic PS4 & Switch Outline)
+![Mix-and-Match Presets](docs/app-presets.png)
+
+### Keyboard Mapping Drawer & Kenney Presets (SacredFire & Kyty)
 ![Keyboard Mapping Drawer](docs/app-keymap.png)
 
-### All Bundled Icon Sets (`All Icons` Gallery)
+### All Bundled Icon Sets (`All Icons` Gallery — Expandable)
 ![All Available Button Icons](docs/all-icons.png)
 
 ### In-Game Examples (UFC 3 & UFC 4 — KLPS Xbox Icons)
