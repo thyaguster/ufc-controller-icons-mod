@@ -7,8 +7,12 @@ from pathlib import Path
 import queue
 import sys
 import threading
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+try:
+    import tkinter as tk
+    from tkinter import filedialog, messagebox, ttk
+except ImportError:
+    tk = None
+    filedialog = messagebox = ttk = None
 import webbrowser
 import zipfile
 
@@ -533,7 +537,7 @@ def _apply_dark_titlebar(win: tk.Misc) -> None:
         pass
 
 
-class InstallerApp(tk.Tk):
+class InstallerApp(tk.Tk if tk else object):
     BG = "#12141a"
     CARD = "#1b1e27"
     SUBCARD = "#161922"
@@ -596,7 +600,7 @@ class InstallerApp(tk.Tk):
         hdr_top.pack(fill="x")
         brand = tk.Frame(hdr_top, bg=self.BG)
         brand.pack(side="left")
-        tk.Label(brand, text="PARSECTAGON", font=("Segoe UI", 8, "bold"), bg=self.ACCENT, fg="#ffffff", padx=7, pady=2).pack(side="left", padx=(0, 10), pady=(3, 0))
+        tk.Button(brand, text="PARSECTAGON", command=lambda: webbrowser.open("https://parsectagon.cc"), font=("Segoe UI", 8, "bold"), bg=self.ACCENT, fg="#ffffff", relief="flat", bd=0, padx=7, pady=2, cursor="hand2").pack(side="left", padx=(0, 10), pady=(3, 0))
         tk.Label(brand, text="UFC Controller Icons Mod", font=("Segoe UI", 16, "bold"), bg=self.BG, fg=self.FG).pack(side="left")
         tk.Button(hdr_top, text="Discord", command=lambda: webbrowser.open("https://discord.gg/a84pBw2Ff"), bg="#5865F2", fg="#ffffff", relief="flat", font=("Segoe UI", 8, "bold"), padx=10, pady=4, cursor="hand2").pack(side="right", padx=(6, 0))
         tk.Button(hdr_top, text="GitHub", command=lambda: webbrowser.open("https://github.com/thyaguster/ufc-controller-icons-mod"), bg="#24292f", fg=self.FG, relief="flat", font=("Segoe UI", 8, "bold"), padx=10, pady=4, cursor="hand2").pack(side="right", padx=(6, 0))

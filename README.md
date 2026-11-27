@@ -1,5 +1,6 @@
 # Parsectagon — UFC Controller Icons Mod
 
+[![Parsectagon](https://img.shields.io/badge/Parsectagon-parsectagon.cc-e63946)](https://parsectagon.cc)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/a84pBw2Ff)
 [![Latest Release](https://img.shields.io/github/v/release/thyaguster/ufc-controller-icons-mod?color=e63946&label=Download)](https://github.com/thyaguster/ufc-controller-icons-mod/releases/latest)
 [![Games](https://img.shields.io/badge/Supported-UFC%202%20%7C%203%20%7C%204%20%7C%205%20%7C%206-2e8b57)](#supported-games)
@@ -61,14 +62,14 @@ A standalone, 100% reversible controller & keyboard button prompt installer for 
 
 ## Building from Source
 
-Requires **Python 3.11+**, **Pillow**, and **PyInstaller**:
+Requires **Python 3.11+**, **Pillow**, **pywebview**, and **PyInstaller** (uses Windows' built-in Edge WebView2 runtime):
 
 ```powershell
-pip install pillow pyinstaller
-.\build-standalone-icons-installer.ps1
+pip install pillow pywebview pyinstaller
+.\build-webview-installer.ps1
 ```
 
-The standalone executable is written to `dist\UFC_Controller_Icons_Mod.exe`.
+The standalone executable is written to `dist\UFC_Controller_Icons_Mod_WebView2.exe`.
 
 ## Credits & Licenses
 
