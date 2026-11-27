@@ -514,6 +514,25 @@ def apply_game_icons(game: str, target: Path, style: str, controls: dict[str, st
     raise ValueError(f"Unsupported game: {game}")
 
 
+def _apply_dark_titlebar(win: tk.Misc) -> None:
+    """Enable Windows 10/11 dark titlebar matching #12141a."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        win.update_idletasks()
+        hwnd = ctypes.windll.user32.GetParent(win.winfo_id()) or win.winfo_id()
+        dwm = ctypes.windll.dwmapi.DwmSetWindowAttribute
+        val = ctypes.c_int(1)
+        dwm(hwnd, 20, ctypes.byref(val), ctypes.sizeof(val))  # DWMWA_USE_IMMERSIVE_DARK_MODE
+        cap = ctypes.c_int(0x001A1412)  # COLORREF 0x00BBGGRR for #12141a
+        dwm(hwnd, 35, ctypes.byref(cap), ctypes.sizeof(cap))  # DWMWA_CAPTION_COLOR
+        txt = ctypes.c_int(0x00F9F4F1)  # #f1f4f9
+        dwm(hwnd, 36, ctypes.byref(txt), ctypes.sizeof(txt))  # DWMWA_TEXT_COLOR
+    except Exception:
+        pass
+
+
 class InstallerApp(tk.Tk):
     BG = "#12141a"
     CARD = "#1b1e27"
@@ -562,6 +581,7 @@ class InstallerApp(tk.Tk):
         self.busy = False
 
         self._build_ui()
+        _apply_dark_titlebar(self)
         self._auto_guess_folder()
         self.update_idletasks()
         self.geometry(f"1020x{max(450, self.winfo_reqheight() + 8)}")
@@ -1153,6 +1173,7 @@ class InstallerApp(tk.Tk):
                 win.iconbitmap(str(self._ico_path))
             except Exception:
                 pass
+        _apply_dark_titlebar(win)
         win.transient(self)
         win.grab_set()
         w_win, h_win = 820, 620
@@ -1312,6 +1333,7 @@ class InstallerApp(tk.Tk):
                 win.iconbitmap(str(self._ico_path))
             except Exception:
                 pass
+        _apply_dark_titlebar(win)
         win.transient(self)
         win.grab_set()
         win.resizable(False, False)
